@@ -1110,4 +1110,3 @@ const easeOutBack = (p: number) => {
 };
 const round = (v: number) => (Math.abs(v) >= 10 ? Math.round(v) : Math.round(v * 100) / 100);
 
-export type { Entity };

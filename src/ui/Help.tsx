@@ -76,7 +76,10 @@ export function Toasts() {
   return (
     <div className="toasts">
       {toasts.map((t) => (
-        <div key={t.id} className={`toast ${t.kind}`} onClick={() => dismiss(t.id)} role="status">
+        <div key={t.id} className={`toast ${t.kind}`} role="status">
+          <button className="toast-close" onClick={() => dismiss(t.id)} aria-label="Dismiss">
+            ×
+          </button>
           <b>{t.kind === 'error' ? '⛔ ' : t.kind === 'ok' ? '✓ ' : ''}</b>
           {t.title}
           {t.details && t.details.length > 0 && (

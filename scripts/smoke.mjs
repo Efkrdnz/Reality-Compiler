@@ -45,6 +45,11 @@ async function check(name, fn) {
   } catch (e) {
     failed++;
     results.push(`  ✗ ${name}\n      ${String(e.message ?? e).split('\n')[0]}`);
+    try {
+      await page.screenshot({ path: join(out, `fail-${failed}.png`) });
+    } catch {
+      /* ignore */
+    }
   }
 }
 function assert(cond, msg) {
@@ -377,6 +382,40 @@ await check('event inspector, metrics and diagnostics render live data', async (
   await page.getByText('Compute state hash').click();
 });
 await page.screenshot({ path: join(out, '07-diagnostics.png') });
+
+await check('inspector edits: change material and add a tag', async () => {
+  await page.getByTestId('tab-presets').click();
+  await page.getByTestId('preset-genesis').click();
+  await page.waitForTimeout(200);
+  await canvas.click({ position: { x: 5, y: 5 } });
+  await page.keyboard.press('Space');
+  await page.keyboard.press('1');
+  const info = await rc(() => {
+    const w = globalThis.__rc.world;
+    const e = w.entities.find((x) => !x.isStatic && x.radius > 12 && x.material !== 'ice');
+    return { id: e.id, p: globalThis.__rcView.camera.toScreen(e.x, e.y) };
+  });
+  await page.mouse.click(box.x + info.p.x, box.y + info.p.y);
+  await page.getByTestId('entity-inspector').waitFor({ timeout: 3000 });
+  await page.getByTestId('inspector-material').selectOption('magnet');
+  await page.getByPlaceholder('add tag…').fill('hero');
+  await page.getByPlaceholder('add tag…').press('Enter');
+  const e = await rc((id) => { const x = globalThis.__rc.world.get(id); return { m: x.material, tags: x.tags }; }, info.id);
+  assert(e.m === 'magnet', `material should be magnet, got ${e.m}`);
+  assert(e.tags.includes('hero'), 'tag should be added');
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Space');
+});
+
+await check('world settings: gravity preset and reseed', async () => {
+  await page.getByTestId('tab-world').click();
+  await page.getByRole('button', { name: 'Zero-g' }).click();
+  const g = await rc(() => globalThis.__rc.world.settings.gravity);
+  assert(g.x === 0 && g.y === 0, 'gravity should be zero');
+  await page.getByRole('button', { name: '🎲 Random' }).click();
+  const seed = await rc(() => globalThis.__rc.world.seed);
+  assert(seed !== 1, 'seed should change');
+});
 
 await check('materials editor creates a programmable material', async () => {
   await page.getByTestId('tab-matter').click();

@@ -39,8 +39,12 @@ npm run build      # type-check + production bundle in dist/
 ```
 
 `npm run smoke` starts its own dev server; pass a URL to test a running instance
-(`npm run smoke -- http://localhost:5173/`). It needs the `playwright` package and a Chromium
-build available to it.
+(`npm run smoke -- http://localhost:5173/`). It isn't a project dependency (it's ~100 MB). To run
+it locally, install it first:
+
+```bash
+npm i --no-save playwright && npx playwright install chromium
+```
 
 ## What you can do
 

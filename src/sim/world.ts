@@ -997,7 +997,3 @@ function warmStart(m: Manifold, c: WarmEntry): void {
 export function pairKey(a: number, b: number): number {
   return a < b ? a * 67108864 + b : b * 67108864 + a;
 }
-
-export function isManifold(m: unknown): m is Manifold {
-  return !!m && typeof m === 'object' && 'nx' in m;
-}

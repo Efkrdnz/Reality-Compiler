@@ -1393,7 +1393,9 @@ input[type='color']::-webkit-color-swatch {
   pointer-events: none;
 }
 .toast {
-  pointer-events: auto;
+  pointer-events: none; /* click-through so toasts never block the canvas */
+  position: relative;
+  padding-right: 34px !important;
   max-width: 560px;
   padding: 9px 14px;
   border-radius: 10px;
@@ -1653,4 +1655,23 @@ input[type='color']::-webkit-color-swatch {
 }
 .btn .kind {
   line-height: 1;
+}
+
+.toast-close {
+  pointer-events: auto;
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  border: 1px solid var(--line-2);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  line-height: 1;
+}
+.toast-close:hover {
+  color: var(--text);
+  background: rgba(130, 190, 255, 0.08);
 }
