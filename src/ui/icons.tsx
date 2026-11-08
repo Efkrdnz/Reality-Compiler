@@ -1,0 +1,63 @@
+import type { ReactElement } from 'react';
+
+const S = (children: ReactElement | ReactElement[]) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+    {children}
+  </svg>
+);
+
+export const Icons = {
+  select: S(<path d="M5 3l13 8-6 1.5L9.5 19z" />),
+  circle: S(<circle cx="12" cy="12" r="7" />),
+  box: S(<rect x="5" y="5" width="14" height="14" rx="1.5" />),
+  triangle: S(<path d="M12 4l8 15H4z" />),
+  hexagon: S(<path d="M12 3l7.8 4.5v9L12 21l-7.8-4.5v-9z" />),
+  particle: S([
+    <circle key="a" cx="7" cy="8" r="1.4" fill="currentColor" />,
+    <circle key="b" cx="15" cy="6" r="1" fill="currentColor" />,
+    <circle key="c" cx="12" cy="13" r="1.6" fill="currentColor" />,
+    <circle key="d" cx="18" cy="15" r="1.2" fill="currentColor" />,
+    <circle key="e" cx="7" cy="17" r="1" fill="currentColor" />,
+  ]),
+  wall: S([<path key="a" d="M3 17L21 9" strokeWidth="3.2" />, <path key="b" d="M3 20h18" opacity=".4" />]),
+  connect: S([<circle key="a" cx="6" cy="17" r="3" />, <circle key="b" cx="18" cy="7" r="3" />, <path key="c" d="M8.5 15l7-6" strokeDasharray="2 2" />]),
+  erase: S([<path key="a" d="M4 15l8-8 7 7-5 5H8z" />, <path key="b" d="M9 20h11" />]),
+  blast: S([<circle key="a" cx="12" cy="12" r="3" />, <path key="b" d="M12 2v4M12 18v4M2 12h4M18 12h4M5 5l2.5 2.5M16.5 16.5L19 19M5 19l2.5-2.5M16.5 7.5L19 5" />]),
+  well: S([<circle key="a" cx="12" cy="12" r="2" fill="currentColor" />, <circle key="b" cx="12" cy="12" r="6" opacity=".6" />, <circle key="c" cx="12" cy="12" r="9.5" opacity=".3" />]),
+  gravityZone: S([<rect key="a" x="3.5" y="4" width="17" height="16" rx="2" opacity=".5" />, <path key="b" d="M12 7v9M8.5 12.5L12 16l3.5-3.5" />]),
+  wind: S(<path d="M3 9h11a3 3 0 1 0-3-3M3 15h15a3 3 0 1 1-3 3M3 12h8" />),
+  vortex: S(<path d="M12 12m-1 0a1 1 0 1 0 2 0a3 3 0 1 0-6 0a5 5 0 1 0 10 0a7 7 0 1 0-14 0" />),
+  heat: S(<path d="M12 21a5 5 0 0 0 3-9V5a3 3 0 0 0-6 0v7a5 5 0 0 0 3 9z" />),
+  timeZone: S([<circle key="a" cx="12" cy="12" r="8.5" />, <path key="b" d="M12 7v5l3 2" />]),
+  portal: S([<ellipse key="a" cx="7" cy="12" rx="3" ry="7" />, <ellipse key="b" cx="17" cy="12" rx="3" ry="7" />, <path key="c" d="M10 12h4" strokeDasharray="1.5 2" />]),
+  play: S(<path d="M7 4.5v15l12-7.5z" fill="currentColor" />),
+  pause: S([<rect key="a" x="6" y="5" width="4" height="14" rx="1" fill="currentColor" />, <rect key="b" x="14" y="5" width="4" height="14" rx="1" fill="currentColor" />]),
+  step: S([<path key="a" d="M6 5v14l9-7z" fill="currentColor" />, <path key="b" d="M18 5v14" strokeWidth="2.2" />]),
+  reset: S([<path key="a" d="M4 12a8 8 0 1 0 2.5-5.8" />, <path key="b" d="M4 4v4h4" />]),
+  undo: S([<path key="a" d="M9 14L4 9l5-5" />, <path key="b" d="M4 9h10a6 6 0 0 1 0 12h-3" />]),
+  redo: S([<path key="a" d="M15 14l5-5-5-5" />, <path key="b" d="M20 9H10a6 6 0 0 0 0 12h3" />]),
+  save: S([<path key="a" d="M5 4h11l3 3v13H5z" />, <path key="b" d="M8 4v5h7V4M8 20v-6h8v6" />]),
+  download: S([<path key="a" d="M12 4v11M7 10l5 5 5-5" />, <path key="b" d="M4 19h16" />]),
+  upload: S([<path key="a" d="M12 16V5M7 10l5-5 5 5" />, <path key="b" d="M4 19h16" />]),
+  help: S([<circle key="a" cx="12" cy="12" r="9" />, <path key="b" d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.6M12 17h.01" />]),
+  trash: S(<path d="M5 7h14M10 7V4h4v3M6.5 7l1 13h9l1-13" />),
+  copy: S([<rect key="a" x="8" y="8" width="12" height="12" rx="2" />, <path key="b" d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3" />]),
+  bolt: S(<path d="M13 3L5 13h6l-1 8 8-10h-6z" />),
+  fit: S(<path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5" />),
+  trails: S(<path d="M4 18c4 0 5-12 9-12s3 6 7 6" />),
+  fields: S([<circle key="a" cx="12" cy="12" r="3" />, <circle key="b" cx="12" cy="12" r="8" strokeDasharray="2 2.5" />]),
+  vectors: S([<path key="a" d="M4 20L18 6" />, <path key="b" d="M11 6h7v7" />]),
+  thermo: S(<path d="M12 21a5 5 0 0 0 3-9V5a3 3 0 0 0-6 0v7a5 5 0 0 0 3 9zM12 17v-6" />),
+  grid: S(<path d="M4 9h16M4 15h16M9 4v16M15 4v16" />),
+  contacts: S([<circle key="a" cx="8" cy="12" r="5" />, <circle key="b" cx="17" cy="12" r="4" />, <path key="c" d="M13 9v6" stroke="#ffb020" />]),
+  tag: S([<path key="a" d="M3 12V4h8l10 10-8 8z" />, <circle key="b" cx="7.5" cy="8.5" r="1.4" />]),
+  chevron: S(<path d="M9 6l6 6-6 6" />),
+  plus: S(<path d="M12 5v14M5 12h14" />),
+  x: S(<path d="M6 6l12 12M18 6L6 18" />),
+  up: S(<path d="M6 15l6-6 6 6" />),
+  down: S(<path d="M6 9l6 6 6-6" />),
+  expand: S(<path d="M15 4h5v5M9 20H4v-5M20 4l-7 7M4 20l7-7" />),
+  shrink: S(<path d="M10 4v6H4M14 20v-6h6M4 10l7-7M20 14l-7 7" />),
+  labels: S(<path d="M4 7V5h16v2M9 19h6M12 5v14" />),
+  glow: S([<circle key="a" cx="12" cy="12" r="4" />, <path key="b" d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />]),
+};
