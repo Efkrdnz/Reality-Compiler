@@ -283,23 +283,42 @@ export const PRESETS: Preset[] = [
     name: 'Firestorm',
     tagline: 'Heat spreads',
     accent: '#ff7a1a',
-    description: 'Towers of wood. A single spark becomes a firestorm: fire conducts heat into wood until it ignites, burning into ash. Impacts also generate heat in this world.',
+    description: 'Towers of wood, a steady breeze and one falling drop of lava. Wood ignites into embers that shed rising flames; heat conducts block to block and the wind carries flames to the next tower until the forest burns down to ash.',
     build: (seed) => {
       const w = base(seed, 'Firestorm', 'Wood, fire and conduction.');
       w.settings.impactHeat = 3;
+      w.settings.wind = { x: 70, y: 0 };
       floor(w);
       const r = w.rng;
-      for (let t = 0; t < 7; t++) {
-        const x = 240 + t * 190;
+      let firstTop = 900;
+      for (let t = 0; t < 9; t++) {
+        const x = 230 + t * 145;
         const h = r.int(5, 9);
         for (let k = 0; k < h; k++) w.spawn({ shape: { type: 'box', w: 60, h: 24 }, x: x + r.range(-2, 2), y: 965 - k * 25, material: 'wood', origin: 'preset' });
+        if (t === 0) firstTop = 965 - (h - 1) * 25 - 12;
       }
-      // a falling ember of lava starts it all
-      w.spawn({ shape: { type: 'circle', radius: 14 }, x: 240, y: 200, material: 'lava', origin: 'preset' });
+      // a drop of lava lands on the first tower and starts it all
+      w.spawn({ shape: { type: 'circle', radius: 12 }, x: 230, y: firstTop - 40, material: 'lava', origin: 'preset' });
       w.rules.push(
-        rule('Fire throws embers', 'timer', { interval: '0.3', target: 'each' }, {
-          conditions: [cond('self', 'material', '==', 'fire'), cond('world', 'chance', '<', '0.3')],
-          actions: [act('emitParticles', 'self', { count: '2', material: 'spark', speed: 'rand(40, 160)' })],
+        rule('Embers shed flames', 'timer', { interval: '0.12', target: 'each' }, {
+          conditions: [cond('self', 'tag', 'has', 'burning')],
+          maxPerStep: 200,
+          actions: [act('emitParticles', 'self', { count: '1', material: 'fire', speed: 'rand(20, 90)', life: 'rand(0.4, 0.9)', size: 'rand(2, 4)' })],
+        }),
+        rule('Sparks fly', 'timer', { interval: '0.5', target: 'each' }, {
+          conditions: [cond('self', 'tag', 'has', 'burning'), cond('world', 'chance', '<', '0.3')],
+          actions: [act('emitParticles', 'self', { count: '2', material: 'spark', speed: 'rand(120, 320)', life: 'rand(0.8, 1.6)' })],
+        }),
+        rule('Radiant heat', 'proximity', { radius: '26', mode: 'while', every: '3' }, {
+          conditions: [cond('self', 'tag', 'has', 'burning'), cond('other', 'material', '==', 'wood')],
+          actions: [act('setProperty', 'other', { property: 'temperature', op: 'add', value: '9' })],
+        }),
+        rule('Sparks ignite wood', 'collision', {}, {
+          conditions: [cond('self', 'material', '==', 'spark'), cond('other', 'material', '==', 'wood')],
+          actions: [act('setProperty', 'other', { property: 'temperature', op: 'add', value: '140' }), act('destroy', 'self')],
+        }),
+        rule('Census', 'timer', { interval: '0.5', target: 'world' }, {
+          actions: [act('setVar', 'world', { name: 'burning', op: 'set', value: "count('burning')" }), act('setVar', 'world', { name: 'ash', op: 'set', value: "countMat('ash')" })],
         }),
       );
       return w;

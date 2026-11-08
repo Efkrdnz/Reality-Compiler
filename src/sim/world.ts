@@ -33,6 +33,7 @@ export const DEFAULT_SETTINGS: WorldSettings = {
 };
 
 export const MAX_SPEED = 6000;
+const ETHEREAL: Record<string, boolean> = { energy: true, plasma: true, gas: true };
 const CONDUCTION_RATE = 3.5;
 const LOG_LIMIT = 800;
 
@@ -486,16 +487,22 @@ export class World {
     const jointPairs = this.jointPairs;
     jointPairs.clear();
     for (const j of this.joints) jointPairs.add(pairKey(j.a, j.b));
+    // Ethereal particles (sparks, flames, vapour) never collide with each other, so they don't need
+    // to query the broadphase themselves: bodies find them. This keeps dense spark clouds cheap.
+    const passive = (e: Entity) => e.kind === 'particle' && ETHEREAL[e.state] === true;
     for (let i = 0; i < ents.length; i++) {
       const a = ents[i];
-      if (a.dead || !a.collides) continue;
+      if (a.dead || !a.collides || passive(a)) continue;
       const r = a.radius + CONTACT_MARGIN;
       this.hash.query(a.x - r, a.y - r, a.x + r, a.y + r, (j) => {
-        if (j <= i) return;
         const b = ents[j];
+        if (j <= i && !passive(b)) return;
+        if (j === i) return;
         if (b.dead || !b.collides) return;
         if (a.isStatic && b.isStatic) return;
-        if (a.kind === 'particle' && b.kind === 'particle' && !s.particleCollisions) return;
+        // particles only collide with each other if enabled, and never when they are energy-like
+        // (sparks, flames, vapour): those are visual matter and would otherwise form costly piles
+        if (a.kind === 'particle' && b.kind === 'particle' && (!s.particleCollisions || ETHEREAL[a.state] || ETHEREAL[b.state])) return;
         const rr = a.radius + b.radius + CONTACT_MARGIN;
         const dx = b.x - a.x;
         const dy = b.y - a.y;

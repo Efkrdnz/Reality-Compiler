@@ -38,6 +38,8 @@ export function Viewport() {
     const wrap = wrapRef.current!;
     const renderer = new Renderer(canvas);
     viewRef.renderer = renderer;
+    // exposed for debugging and the automated smoke test (scripts/smoke.mjs)
+    (globalThis as unknown as { __rcView: Renderer }).__rcView = renderer;
     const cam = renderer.camera;
     const resize = () => {
       const r = wrap.getBoundingClientRect();

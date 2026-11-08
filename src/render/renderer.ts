@@ -652,8 +652,8 @@ export class Renderer {
         const pulse = overlay.pulse?.get(e.id) ?? 0;
         glow = Math.min(1.4, glow + pulse);
         if (glow < 0.06) continue;
-        const size = e.radius * (e.kind === 'particle' ? 7 : 2.4 + glow * 2.2);
-        gctx.globalAlpha = Math.min(1, (e.kind === 'particle' ? 0.9 : 0.55) * glow * (e.kind === 'particle' && e.lifetime >= 0 ? Math.min(1, e.lifetime * 3) : 1));
+        const size = e.radius * (e.kind === 'particle' ? 5.5 : 2.4 + glow * 2.2);
+        gctx.globalAlpha = Math.min(1, (e.kind === 'particle' ? 0.7 : 0.55) * glow * (e.kind === 'particle' && e.lifetime >= 0 ? Math.min(1, e.lifetime * 3) : 1));
         gctx.drawImage(this.glow(color), e.x - size, e.y - size, size * 2, size * 2);
       }
       ctx.save();

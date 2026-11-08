@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { act, cloneRule, defaultCondition, instantiateModule, rule as makeRule, ruleId } from '../../sim/rules/build';
+import { act, cloneRule, cond, defaultCondition, instantiateModule, rule as makeRule, ruleId } from '../../sim/rules/build';
 import {
   ACTION_BY_TYPE,
   ACTIONS,
@@ -672,6 +672,32 @@ function ModuleLibrary() {
   );
 }
 
+/**
+ * Safe, visible starting points for new rules. Rules that react to particles by making particles
+ * cascade until the entity cap, so the starters filter to bodies.
+ */
+function starterFor(type: TriggerType): { conditions: Condition[]; actions: Action[] } {
+  const bodies = [cond('self', 'kind', '==', 'body')];
+  switch (type) {
+    case 'collision':
+      return { conditions: [...bodies, cond('other', 'kind', '==', 'body')], actions: [act('emitParticles', 'self', { count: '4' })] };
+    case 'proximity':
+      return { conditions: [...bodies, cond('other', 'kind', '==', 'body')], actions: [act('push', 'other', { strength: '20', direction: 'away' })] };
+    case 'timer':
+      return { conditions: [], actions: [act('log', 'world', { message: 'tick at t={world.time}' })] };
+    case 'creation':
+      return { conditions: bodies, actions: [act('addTag', 'self', { tag: 'newborn' })] };
+    case 'destruction':
+    case 'stateChange':
+      return { conditions: bodies, actions: [act('emitParticles', 'self', { count: '6' })] };
+    case 'temperature':
+    case 'velocity':
+      return { conditions: bodies, actions: [act('transform', 'self', { color: '#ff3df2' })] };
+    default:
+      return { conditions: [], actions: [act('log', 'world', { message: '{self.id} received a call' })] };
+  }
+}
+
 // ------------------------------------------------------------------- panel
 
 export function RulesPanel() {
@@ -701,9 +727,7 @@ export function RulesPanel() {
   const addRule = (type: TriggerType) => {
     sim.commit('add rule');
     const t = TRIGGER_BY_TYPE[type];
-    const r = makeRule(`New ${t.label.toLowerCase()} rule`, type, {}, {
-      actions: [type === 'timer' ? act('log', 'world', { message: 'tick at t={world.time}' }) : act('emitParticles', 'self')],
-    });
+    const r = makeRule(`New ${t.label.toLowerCase()} rule`, type, {}, starterFor(type));
     w.rules = [...w.rules, r];
     sim.rulesChanged();
     setOpen((s) => new Set(s).add(r.id));

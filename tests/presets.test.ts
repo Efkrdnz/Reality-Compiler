@@ -37,8 +37,9 @@ describe('presets', () => {
     expect(mats.has('steam') || mats.has('water')).toBe(true);
 
     const forest = buildPreset('forest', 1);
-    run(forest, 900);
-    expect(forest.entities.some((e) => e.material === 'fire' || e.material === 'ash')).toBe(true);
+    run(forest, 1200);
+    const burned = forest.entities.filter((e) => e.material === 'ember' || e.material === 'ash').length;
+    expect(burned).toBeGreaterThan(8); // fire spread through the towers
 
     const fw = buildPreset('fireworks', 1);
     run(fw, 1200);

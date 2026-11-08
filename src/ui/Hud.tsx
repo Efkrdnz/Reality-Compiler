@@ -1,6 +1,7 @@
 import type { RefObject } from 'react';
 import type { ViewOptions } from '../render/renderer';
 import { Icons } from './icons';
+import { SpawnBar } from './SpawnBar';
 import { sim, useTick } from './sim';
 import { useUI } from './store';
 import { viewRef } from './Viewport';
@@ -76,7 +77,8 @@ export function Hud({ cursor }: { cursor: RefObject<{ wx: number; wy: number; in
           seed {w.seed} · {w.rules.length} rules · {w.fields.length} fields · {w.joints.length} joints
         </div>
       </div>
-      <div className="hud bl">
+      <SpawnBar />
+      <div className="hud" style={{ right: 14, bottom: 52 }}>
         {c?.inside && (
           <span>
             x {c.wx.toFixed(0)} y {c.wy.toFixed(0)} · zoom {(zoom * 100).toFixed(0)}%
