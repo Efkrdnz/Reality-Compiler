@@ -12,6 +12,8 @@ const vecS = z.object({ x: num, y: num });
 const hex = z.string().regex(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i, 'must be a hex colour');
 const paramValue = z.union([z.string().max(400), num, z.boolean()]);
 const name = z.string().max(80);
+const RESERVED = new Set(['__proto__', 'constructor', 'prototype', 'hasOwnProperty', 'toString', 'valueOf']);
+const varRecord = z.record(z.string().max(40).refine((k) => !RESERVED.has(k), 'reserved variable name'), num);
 
 export const MaterialSchema = z.object({
   id: z.string().regex(/^[\w-]{1,32}$/, 'material id: letters, digits, _ or -'),
@@ -105,7 +107,7 @@ const EntitySchema = z.object({
   temperature: num,
   state: z.enum(['solid', 'liquid', 'gas', 'plasma', 'energy']),
   tags: z.array(z.string().max(40)).max(32),
-  vars: z.record(z.string(), num),
+  vars: varRecord,
   isStatic: z.boolean(),
   collides: z.boolean(),
   lifetime: num,
@@ -185,7 +187,27 @@ export const WorldDocSchema = z.object({
   fields: z.array(FieldSchema).max(256),
   rules: z.array(RuleSchema).max(500),
   modules: z.array(ModuleSchema).max(100),
-  vars: z.record(z.string(), num),
+  vars: varRecord,
+  runtime: z
+    .object({
+      engine: z.object({
+        rules: z.record(
+          z.string(),
+          z.object({
+            nextTimer: num,
+            globalReady: num,
+            entityReady: z.array(z.tuple([z.number(), num])),
+            proxPrev: z.array(z.number()),
+            proxCounter: num,
+            totalFires: num,
+          }),
+        ),
+      }),
+      contacts: z.array(z.number()),
+      warm: z.array(z.array(z.number()).max(13)).max(200000).optional(),
+      deferred: z.array(z.object({ type: z.string(), depth: z.number() }).passthrough()).max(100000),
+    })
+    .optional(),
 });
 
 export const RulesDocSchema = z.object({
@@ -282,6 +304,13 @@ export function serializeWorld(w: World): WorldDoc {
     rules: structuredClone(w.rules),
     modules: structuredClone(w.modules),
     vars: { ...w.vars },
+    runtime: {
+      engine: w.engine.exportState(),
+      contacts: w.exportContacts(),
+      warm: w.exportWarm(),
+      // only creation events are carried across steps; keep them so creation rules still fire after loading
+      deferred: w.deferred.filter((e) => e.type === 'creation').map((e) => ({ ...e })),
+    },
   };
 }
 
@@ -342,6 +371,12 @@ export function deserializeWorld(input: unknown): World {
   const maxId = Math.max(0, ...w.entities.map((e) => e.id), ...w.fields.map((f) => f.id), ...w.joints.map((j) => j.id));
   w.nextId = Math.max(doc.nextId ?? 1, maxId + 1);
   if (doc.rngState) w.rng.setState(doc.rngState);
+  if (doc.runtime) {
+    w.engine.importState(doc.runtime.engine);
+    w.importContacts(doc.runtime.contacts);
+    if (doc.runtime.warm) w.importWarm(doc.runtime.warm);
+    w.deferred = doc.runtime.deferred.filter((e) => e.type === 'creation' && ids.has((e as { id: number }).id)) as World['deferred'];
+  }
   w.engine.invalidate();
   return w;
 }

@@ -1,6 +1,6 @@
 import { HEX_COLOR } from '../math';
 import { ACTION_BY_TYPE, CONDITION_BY_FIELD, TRIGGER_BY_TYPE, type ParamSpec } from './catalog';
-import { compile } from './expr';
+import { compile, FORBIDDEN_NAMES } from './expr';
 import type { Rule } from './types';
 
 export interface RuleIssue {
@@ -54,6 +54,7 @@ function checkParam(rule: Rule, path: string, spec: ParamSpec, value: unknown, c
     case 'signal':
     case 'var':
       if (!/^[\w:.-]{1,40}$/.test(String(value))) issue('error', `${spec.label} may only use letters, digits, _ - : . (max 40)`);
+      else if (FORBIDDEN_NAMES.has(String(value))) issue('error', `“${value}” is a reserved name`);
       break;
   }
 }
@@ -93,6 +94,7 @@ export function validateRule(rule: Rule, ctx: ValidationContext): RuleIssue[] {
       out.push({ ruleId: rule.id, level: 'error', path, message: 'tag is required' });
     }
     if (c.field === 'var' && !c.key) out.push({ ruleId: rule.id, level: 'error', path, message: 'variable name is required' });
+    if (c.field === 'var' && c.key && FORBIDDEN_NAMES.has(c.key)) out.push({ ruleId: rule.id, level: 'error', path, message: `“${c.key}” is a reserved name` });
   });
 
   if (!rule.actions.length) out.push({ ruleId: rule.id, level: 'warning', path: 'actions', message: 'rule has no actions' });

@@ -224,6 +224,13 @@ export interface WorldDoc {
   rules: Rule[];
   modules: RuleModule[];
   vars: Record<string, number>;
+  /** Runtime state for exact continuation (optional; absent in hand-written files). */
+  runtime?: {
+    engine: import('./rules/engine').EngineStateDoc;
+    contacts: number[];
+    warm?: number[][];
+    deferred: import('./rules/engine').EngineEvent[];
+  };
 }
 
 export type EntityDoc = Omit<

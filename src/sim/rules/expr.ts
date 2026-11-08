@@ -61,6 +61,18 @@ export const FUNCTIONS: Record<string, FnSpec> = {
   countMat: { min: 1, max: 1, strArgs: [0] },
 };
 
+const own = (o: object, k: string): boolean => Object.prototype.hasOwnProperty.call(o, k);
+
+/** Names that must never be used as variable keys (prototype pollution guards). */
+export const FORBIDDEN_NAMES = new Set(['__proto__', 'constructor', 'prototype', 'hasOwnProperty', 'toString', 'valueOf']);
+
+/** Own-property numeric read; never walks the prototype chain. */
+export function readVar(vars: Record<string, number>, k: string): number {
+  if (!own(vars, k)) return 0;
+  const v = vars[k];
+  return typeof v === 'number' ? v : 0;
+}
+
 export class ExprError extends Error {
   constructor(
     message: string,
@@ -211,9 +223,12 @@ class Parser {
     }
     if (t.t === 'id') {
       const name = t.v;
-      if (name.startsWith('$')) return { k: 'ref', root: 'global', prop: name.slice(1) };
+      if (name.startsWith('$')) {
+        if (FORBIDDEN_NAMES.has(name.slice(1))) throw new ExprError(`'${name}' is not a valid variable name`, t.p);
+        return { k: 'ref', root: 'global', prop: name.slice(1) };
+      }
       if (this.isOp('(')) {
-        const spec = FUNCTIONS[name];
+        const spec = own(FUNCTIONS, name) ? FUNCTIONS[name] : undefined;
         if (!spec) throw new ExprError(`unknown function '${name}'`, t.p);
         this.next();
         const args: Ast[] = [];
@@ -241,7 +256,7 @@ class Parser {
         });
         return { k: 'call', fn: name, args };
       }
-      if (name in CONSTANTS) return { k: 'ref', root: 'const', prop: name };
+      if (own(CONSTANTS, name)) return { k: 'ref', root: 'const', prop: name };
       if (name === 'self' || name === 'other' || name === 'world' || name === 'event') {
         this.expect('.');
         const p = this.next();
@@ -253,6 +268,8 @@ class Parser {
         } else if (name === 'event') {
           if (!(EVENT_PROPS as readonly string[]).includes(prop))
             throw new ExprError(`unknown event property '${prop}' (try: ${EVENT_PROPS.join(', ')})`, p.p);
+        } else if (prop.startsWith('$') && FORBIDDEN_NAMES.has(prop.slice(1))) {
+          throw new ExprError(`'${prop}' is not a valid variable name`, p.p);
         } else if (!prop.startsWith('$') && !(ENTITY_PROPS as readonly string[]).includes(prop)) {
           throw new ExprError(`unknown property '${prop}' (try: ${ENTITY_PROPS.join(', ')} or $variable)`, p.p);
         }
@@ -366,7 +383,7 @@ export interface ExprEnv {
 
 function entityProp(e: ExprEntity | null, prop: string): number {
   if (!e) return 0;
-  if (prop.startsWith('$')) return e.vars[prop.slice(1)] ?? 0;
+  if (prop.startsWith('$')) return readVar(e.vars, prop.slice(1));
   switch (prop) {
     case 'speed':
       return Math.hypot(e.vx, e.vy);
@@ -402,7 +419,7 @@ export function evaluate(ast: Ast, env: ExprEnv): number {
         case 'global':
           return env.global(ast.prop);
         case 'const':
-          return CONSTANTS[ast.prop] ?? 0;
+          return own(CONSTANTS, ast.prop) ? CONSTANTS[ast.prop] : 0;
       }
       return 0;
     case 'un': {

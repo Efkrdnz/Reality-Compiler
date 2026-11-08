@@ -29,7 +29,19 @@ export interface Manifold {
   friction: number;
   /** Relative normal speed at the moment of detection (positive = approaching). */
   approach: number;
+  // 2-point block solver data (Box2D style)
+  block: boolean;
+  k11: number;
+  k12: number;
+  k22: number;
+  nm11: number;
+  nm12: number;
+  nm21: number;
+  nm22: number;
 }
+
+/** Contacts are generated slightly before touching (speculative contacts) for stable stacking. */
+export const CONTACT_MARGIN = 2;
 
 const mkPoint = (): ContactPoint => ({ x: 0, y: 0, depth: 0, rax: 0, ray: 0, rbx: 0, rby: 0, massN: 0, massT: 0, bias: 0, jn: 0, jt: 0 });
 
@@ -43,7 +55,7 @@ export class ManifoldPool {
   take(a: Entity, b: Entity): Manifold {
     let m = this.items[this.used];
     if (!m) {
-      m = { a, b, nx: 0, ny: 0, count: 0, p: [mkPoint(), mkPoint()], restitution: 0, friction: 0, approach: 0 };
+      m = { a, b, nx: 0, ny: 0, count: 0, p: [mkPoint(), mkPoint()], restitution: 0, friction: 0, approach: 0, block: false, k11: 0, k12: 0, k22: 0, nm11: 0, nm12: 0, nm21: 0, nm22: 0 };
       this.items.push(m);
     }
     this.used++;
@@ -78,7 +90,8 @@ export function circleCircle(m: Manifold): boolean {
   const dy = b.y - a.y;
   const r = a.radius + b.radius;
   const d2 = dx * dx + dy * dy;
-  if (d2 >= r * r) return false;
+  const rm = r + CONTACT_MARGIN;
+  if (d2 >= rm * rm) return false;
   const d = Math.sqrt(d2);
   let nx = 1;
   let ny = 0;
@@ -105,7 +118,7 @@ export function polyCircle(m: Manifold, pa: PolyCache, flip: boolean): boolean {
   let face = 0;
   for (let i = 0; i < pa.n; i++) {
     const s = pa.nx[i] * (cx - pa.wx[i]) + pa.ny[i] * (cy - pa.wy[i]);
-    if (s > r) return false;
+    if (s > r + CONTACT_MARGIN) return false;
     if (s > sep) {
       sep = s;
       face = i;
@@ -130,7 +143,7 @@ export function polyCircle(m: Manifold, pa: PolyCache, flip: boolean): boolean {
       const dx = cx - v1x;
       const dy = cy - v1y;
       const d2 = dx * dx + dy * dy;
-      if (d2 > r * r) return false;
+      if (d2 > (r + CONTACT_MARGIN) ** 2) return false;
       const d = Math.sqrt(d2) || 1;
       nx = dx / d;
       ny = dy / d;
@@ -139,7 +152,7 @@ export function polyCircle(m: Manifold, pa: PolyCache, flip: boolean): boolean {
       const dx = cx - v2x;
       const dy = cy - v2y;
       const d2 = dx * dx + dy * dy;
-      if (d2 > r * r) return false;
+      if (d2 > (r + CONTACT_MARGIN) ** 2) return false;
       const d = Math.sqrt(d2) || 1;
       nx = dx / d;
       ny = dy / d;
@@ -219,9 +232,9 @@ function clip(nx: number, ny: number, c: number): number {
 
 export function polyPoly(m: Manifold, pa: PolyCache, pb: PolyCache): boolean {
   const A = leastPenetration(pa, pb);
-  if (A.sep >= 0) return false;
+  if (A.sep >= CONTACT_MARGIN) return false;
   const B = leastPenetration(pb, pa);
-  if (B.sep >= 0) return false;
+  if (B.sep >= CONTACT_MARGIN) return false;
 
   let ref: PolyCache;
   let inc: PolyCache;
@@ -272,7 +285,7 @@ export function polyPoly(m: Manifold, pa: PolyCache, pb: PolyCache): boolean {
   let count = 0;
   for (let i = 0; i < 2; i++) {
     const sep = rnx * clipX[i] + rny * clipY[i] - refC;
-    if (sep <= 0) {
+    if (sep <= CONTACT_MARGIN) {
       setPoint(m, count, clipX[i], clipY[i], -sep);
       count++;
     }

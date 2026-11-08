@@ -3,7 +3,7 @@ import { colorDistance, HEX_COLOR } from '../math';
 import type { Entity } from '../types';
 import type { World } from '../world';
 import { ACTION_BY_TYPE } from './catalog';
-import { BudgetExceeded, compile, evaluate, type ExprEnv } from './expr';
+import { BudgetExceeded, compile, evaluate, FORBIDDEN_NAMES, readVar, type ExprEnv } from './expr';
 import type { Action, Condition, ParamValue, Rule, TriggerType } from './types';
 import { validateRules, type RuleIssue } from './validate';
 
@@ -20,6 +20,13 @@ export type EngineEvent =
   | { type: 'stateChange'; id: number; fromMat: string; toMat: string; fromState: string; toState: string; depth: number; cause: string }
   | { type: 'signal'; name: string; source?: number; other?: number; depth: number; chain?: ChainCtx }
   | { type: 'manual'; ruleId: string; self?: number; other?: number; depth: number; chain?: ChainCtx };
+
+export interface EngineStateDoc {
+  rules: Record<
+    string,
+    { nextTimer: number; globalReady: number; entityReady: [number, number][]; proxPrev: number[]; proxCounter: number; totalFires: number }
+  >;
+}
 
 interface RuleState {
   nextTimer: number;
@@ -143,7 +150,7 @@ export class RuleEngine {
         }
         return 0;
       },
-      global: (n) => w.vars[n] ?? 0,
+      global: (n) => readVar(w.vars, n),
       count: (tag) => {
         this.budget.left -= 10;
         let n = 0;
@@ -468,7 +475,7 @@ export class RuleEngine {
     const w = this.world;
     if (c.field === 'chance') return w.rng.next() < this.num(c.value, ctx, 0);
     if (c.field === 'expr') return this.num(c.value, ctx, 0) !== 0;
-    if (c.field === 'var' && c.subject === 'world') return cmpNum(w.vars[c.key ?? ''] ?? 0, c.op, this.num(c.value, ctx, 0));
+    if (c.field === 'var' && c.subject === 'world') return cmpNum(readVar(w.vars, c.key ?? ''), c.op, this.num(c.value, ctx, 0));
     const e = c.subject === 'other' ? ctx.other : ctx.self;
     if (!e) return false;
     switch (c.field) {
@@ -490,7 +497,7 @@ export class RuleEngine {
         return c.op === '!=' ? !eq : eq;
       }
       case 'var':
-        return cmpNum(e.vars[c.key ?? ''] ?? 0, c.op, this.num(c.value, ctx, 0));
+        return cmpNum(readVar(e.vars, c.key ?? ''), c.op, this.num(c.value, ctx, 0));
       default: {
         const v =
           c.field === 'speed' ? Math.hypot(e.vx, e.vy) : c.field === 'temperature' ? e.temperature : (e as unknown as Record<string, number>)[c.field];
@@ -808,11 +815,11 @@ export class RuleEngine {
       }
       case 'setVar': {
         const name = String(P('name') ?? '');
-        if (!name) return;
+        if (!name || FORBIDDEN_NAMES.has(name)) return;
         const op = String(P('op'));
         const v = N('value');
-        if (a.target === 'world') w.vars[name] = applyOp(w.vars[name] ?? 0, op, v);
-        else for (const t of this.targets(a, ctx)) t.vars[name] = applyOp(t.vars[name] ?? 0, op, v);
+        if (a.target === 'world') w.vars[name] = applyOp(readVar(w.vars, name), op, v);
+        else for (const t of this.targets(a, ctx)) t.vars[name] = applyOp(readVar(t.vars, name), op, v);
         return;
       }
       case 'setEnvironment': {
@@ -861,6 +868,38 @@ export class RuleEngine {
         w.addLog('info', msg.slice(0, 200), { ruleId: rule.id, entityId: ctx.self?.id });
         return;
       }
+    }
+  }
+
+  /** Serializable runtime state (timers, cooldowns, proximity memory) for exact save/load. */
+  exportState(): EngineStateDoc {
+    const rules: EngineStateDoc['rules'] = {};
+    for (const [id, st] of this.state) {
+      rules[id] = {
+        nextTimer: st.nextTimer,
+        globalReady: st.globalReady,
+        entityReady: [...st.entityReady.entries()],
+        proxPrev: [...st.proxPrev],
+        proxCounter: st.proxCounter,
+        totalFires: st.totalFires,
+      };
+    }
+    return { rules };
+  }
+
+  importState(doc: EngineStateDoc | undefined): void {
+    this.state.clear();
+    if (!doc) return;
+    for (const [id, r] of Object.entries(doc.rules)) {
+      this.state.set(id, {
+        nextTimer: r.nextTimer,
+        firesThisStep: 0,
+        globalReady: r.globalReady,
+        entityReady: new Map(r.entityReady),
+        proxPrev: new Set(r.proxPrev),
+        proxCounter: r.proxCounter,
+        totalFires: r.totalFires,
+      });
     }
   }
 

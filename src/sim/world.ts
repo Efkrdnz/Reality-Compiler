@@ -1,4 +1,4 @@
-import { ManifoldPool, circleCircle, polyCircle, polyPoly, type Manifold } from './collide';
+import { CONTACT_MARGIN, ManifoldPool, circleCircle, polyCircle, polyPoly, type Manifold } from './collide';
 import { makeEntity, newPolyCache, setMassFromDensity, transformPoly, type PolyCache, type ShapeSpec } from './entity';
 import { accumulateField, fieldAffects, fieldContains, type FieldAccum } from './fields';
 import { cloneMaterial, defaultMaterials } from './materials';
@@ -376,16 +376,13 @@ export class World {
     const stats = this.stats;
     Object.assign(stats, emptyStats());
     this.collisionsThisStep.length = 0;
-    // events deferred from the previous step (creations) are processed now
-    this.events = this.deferred;
+    // events deferred from the previous step (creations) are processed now, followed by
+    // anything queued between steps (user deletions, manual rule firings, external transforms)
+    this.events = this.deferred.concat(this.events);
     this.deferred = [];
 
     const ts = Math.max(0, Math.min(10, this.settings.timeScale));
     const dtw = dt * ts;
-    for (const e of this.entities) {
-      e.prevTemp = e.temperature;
-      e.prevSpeed = Math.hypot(e.vx, e.vy);
-    }
     this.contactsNow.clear();
     if (dtw > 0) {
       const n = Math.max(1, Math.min(8, Math.round(this.settings.substeps)));
@@ -405,6 +402,12 @@ export class World {
     stats.rulesMs = now() - tr;
 
     this.cleanup();
+    // remember end-of-step values: temperature / velocity triggers detect crossings against these,
+    // so changes made between steps (inspector edits, rules) are crossings too
+    for (const e of this.entities) {
+      e.prevTemp = e.temperature;
+      e.prevSpeed = Math.hypot(e.vx, e.vy);
+    }
     this.time += dtw;
     this.stepCount++;
     stats.stepMs = now() - t0;
@@ -486,14 +489,14 @@ export class World {
     for (let i = 0; i < ents.length; i++) {
       const a = ents[i];
       if (a.dead || !a.collides) continue;
-      const r = a.radius;
+      const r = a.radius + CONTACT_MARGIN;
       this.hash.query(a.x - r, a.y - r, a.x + r, a.y + r, (j) => {
         if (j <= i) return;
         const b = ents[j];
         if (b.dead || !b.collides) return;
         if (a.isStatic && b.isStatic) return;
         if (a.kind === 'particle' && b.kind === 'particle' && !s.particleCollisions) return;
-        const rr = a.radius + b.radius;
+        const rr = a.radius + b.radius + CONTACT_MARGIN;
         const dx = b.x - a.x;
         const dy = b.y - a.y;
         if (dx * dx + dy * dy > rr * rr) return;
@@ -512,10 +515,18 @@ export class World {
     this.manifoldCount = pool.used;
     stats.broadphaseMs += now() - tb;
 
-    // ---- solve
+    // ---- solve (warm-started from the previous substep's accumulated impulses)
     const ts0 = now();
     const count = pool.used;
-    for (let k = 0; k < count; k++) prepareContact(pool.get(k));
+    const cache = this.warmCache;
+    // all biases / approach speeds must be computed from the same pre-solve velocities,
+    // BEFORE any warm-start impulse is applied (otherwise resting stacks look like impacts)
+    for (let k = 0; k < count; k++) prepareContact(pool.get(k), h);
+    for (let k = 0; k < count; k++) {
+      const m = pool.get(k);
+      const c = cache.get(pairKey(m.a.id, m.b.id));
+      if (c && c.aId === m.a.id && c.nx * m.nx + c.ny * m.ny > 0.95) warmStart(m, c);
+    }
     const jrs = this.prepareJoints(h);
     const iters = Math.max(1, Math.min(30, Math.round(s.iterations)));
     for (let it = 0; it < iters; it++) {
@@ -523,6 +534,19 @@ export class World {
       for (let k = 0; k < count; k++) solveContact(pool.get(k));
     }
     stats.contacts = count;
+    // remember impulses for warm starting the next substep
+    cache.clear();
+    for (let k = 0; k < count; k++) {
+      const m = pool.get(k);
+      const e: WarmEntry = { aId: m.a.id, nx: m.nx, ny: m.ny, n: m.count, x0: m.p[0].x, y0: m.p[0].y, jn0: m.p[0].jn, jt0: m.p[0].jt, x1: 0, y1: 0, jn1: 0, jt1: 0 };
+      if (m.count > 1) {
+        e.x1 = m.p[1].x;
+        e.y1 = m.p[1].y;
+        e.jn1 = m.p[1].jn;
+        e.jt1 = m.p[1].jt;
+      }
+      cache.set(pairKey(m.a.id, m.b.id), e);
+    }
     stats.solveMs += now() - ts0;
 
     // ---- integrate positions (in local time)
@@ -553,6 +577,9 @@ export class World {
       const m = pool.get(k);
       const a = m.a;
       const b = m.b;
+      let deepest = -Infinity;
+      for (let i = 0; i < m.count; i++) if (m.p[i].depth > deepest) deepest = m.p[i].depth;
+      if (deepest < -TOUCH_TOLERANCE && totalNormalImpulse(m) <= 0) continue; // speculative only, not touching
       const key = pairKey(a.id, b.id);
       if (!this.contactsNow.has(key)) {
         this.contactsNow.add(key);
@@ -571,10 +598,11 @@ export class World {
       // conduction
       const ca = this.material(a.material).conductivity;
       const cb = this.material(b.material).conductivity;
-      const kc = Math.min(ca, cb);
+      const kc = Math.sqrt(ca * cb);
       if (kc > 0 && a.temperature !== b.temperature) {
-        const ma = a.isStatic ? a.mass * 4 : a.mass;
-        const mb = b.isStatic ? b.mass * 4 : b.mass;
+        // heat capacity grows sub-linearly with mass so small flames can still ignite big logs
+        const ma = Math.sqrt(a.isStatic ? a.mass * 4 : a.mass);
+        const mb = Math.sqrt(b.isStatic ? b.mass * 4 : b.mass);
         const q = (a.temperature - b.temperature) * Math.min(0.5, kc * CONDUCTION_RATE * h * Math.min(a.localTime, b.localTime));
         a.temperature -= (q * mb) / (ma + mb);
         b.temperature += (q * ma) / (ma + mb);
@@ -595,6 +623,7 @@ export class World {
     this.applyPortals(h);
   }
 
+  private warmCache = new Map<number, WarmEntry>();
   private jrPool: JointRuntime[] = [];
   private prepareJoints(h: number): JointRuntime[] {
     const out: JointRuntime[] = [];
@@ -875,8 +904,82 @@ export class World {
     return hashNumbers(nums());
   }
 
+  /** Contact pairs touching at the end of the last step (needed to replay collision-begin events exactly). */
+  exportContacts(): number[] {
+    return [...this.contactsPrev];
+  }
+
+  importContacts(keys: number[]): void {
+    this.contactsPrev = new Set(keys);
+  }
+
+  /** Warm-start impulse cache, flattened (needed so a loaded world continues bit-for-bit). */
+  exportWarm(): number[][] {
+    const out: number[][] = [];
+    for (const [k, e] of this.warmCache) out.push([k, e.aId, e.nx, e.ny, e.n, e.x0, e.y0, e.jn0, e.jt0, e.x1, e.y1, e.jn1, e.jt1]);
+    return out;
+  }
+
+  importWarm(rows: number[][]): void {
+    this.warmCache.clear();
+    for (const r of rows) {
+      if (r.length !== 13 || !r.every(Number.isFinite)) continue;
+      this.warmCache.set(r[0], { aId: r[1], nx: r[2], ny: r[3], n: r[4], x0: r[5], y0: r[6], jn0: r[7], jt0: r[8], x1: r[9], y1: r[10], jn1: r[11], jt1: r[12] });
+    }
+  }
+
   get manifolds(): number {
     return this.manifoldCount;
+  }
+}
+
+interface WarmEntry {
+  aId: number;
+  nx: number;
+  ny: number;
+  n: number;
+  x0: number;
+  y0: number;
+  jn0: number;
+  jt0: number;
+  x1: number;
+  y1: number;
+  jn1: number;
+  jt1: number;
+}
+
+const WARM_DIST2 = 4 * 4;
+const TOUCH_TOLERANCE = 0.75;
+
+/** Seeds contact impulses from matching points of the previous substep and applies them. */
+function warmStart(m: Manifold, c: WarmEntry): void {
+  const tx = -m.ny;
+  const ty = m.nx;
+  for (let i = 0; i < m.count; i++) {
+    const p = m.p[i];
+    let jn = 0;
+    let jt = 0;
+    const d0 = (p.x - c.x0) ** 2 + (p.y - c.y0) ** 2;
+    const d1 = c.n > 1 ? (p.x - c.x1) ** 2 + (p.y - c.y1) ** 2 : Infinity;
+    if (d0 <= d1 && d0 < WARM_DIST2) {
+      jn = c.jn0;
+      jt = c.jt0;
+    } else if (d1 < WARM_DIST2) {
+      jn = c.jn1;
+      jt = c.jt1;
+    } else continue;
+    p.jn = jn;
+    p.jt = jt;
+    const px = m.nx * jn + tx * jt;
+    const py = m.ny * jn + ty * jt;
+    const a = m.a;
+    const b = m.b;
+    a.vx -= px * a.invMass;
+    a.vy -= py * a.invMass;
+    a.av -= a.invInertia * (p.rax * py - p.ray * px);
+    b.vx += px * b.invMass;
+    b.vy += py * b.invMass;
+    b.av += b.invInertia * (p.rbx * py - p.rby * px);
   }
 }
 

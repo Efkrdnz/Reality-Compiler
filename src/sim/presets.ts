@@ -294,7 +294,8 @@ export const PRESETS: Preset[] = [
         const h = r.int(5, 9);
         for (let k = 0; k < h; k++) w.spawn({ shape: { type: 'box', w: 60, h: 24 }, x: x + r.range(-2, 2), y: 965 - k * 25, material: 'wood', origin: 'preset' });
       }
-      w.spawn({ shape: { type: 'circle', radius: 14 }, x: 240, y: 300, material: 'fire', origin: 'preset' });
+      // a falling ember of lava starts it all
+      w.spawn({ shape: { type: 'circle', radius: 14 }, x: 240, y: 200, material: 'lava', origin: 'preset' });
       w.rules.push(
         rule('Fire throws embers', 'timer', { interval: '0.3', target: 'each' }, {
           conditions: [cond('self', 'material', '==', 'fire'), cond('world', 'chance', '<', '0.3')],
