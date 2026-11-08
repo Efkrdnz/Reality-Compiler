@@ -12,19 +12,27 @@ function groundWorld(): World {
 const finite = (w: World) => w.entities.every((e) => [e.x, e.y, e.vx, e.vy, e.angle, e.av].every(Number.isFinite));
 
 describe('rigid body stability', () => {
-  it('a stack of boxes settles without exploding or sinking', () => {
+  it.each([
+    [16, 40, 0.7],
+    [10, 20, 0.7], // thin boxes
+    [12, 40, 0.2], // slippery
+  ])('a staggered stack of %i boxes (width %i, friction %f) stays upright', (n, width, friction) => {
     const w = groundWorld();
     const boxes = [];
-    for (let i = 0; i < 8; i++) boxes.push(w.spawn({ shape: { type: 'box', w: 40, h: 40 }, x: 800, y: 940 - i * 41, material: 'stone' })!);
-    run(w, 600);
+    for (let i = 0; i < n; i++) {
+      const b = w.spawn({ shape: { type: 'box', w: width, h: 40 }, x: 800 + (i % 2) * 3, y: 940 - i * 41, material: 'stone' })!;
+      b.friction = friction;
+      boxes.push(b);
+    }
+    run(w, 900);
     expect(finite(w)).toBe(true);
     for (const b of boxes) {
-      expect(Math.abs(b.x - 800)).toBeLessThan(25); // stayed stacked
-      expect(Math.hypot(b.vx, b.vy)).toBeLessThan(15); // at rest
+      expect(Math.abs(b.x - 800)).toBeLessThan(6); // stayed stacked
+      expect(Math.abs(b.angle)).toBeLessThan(0.02); // no creeping rotation
+      expect(Math.hypot(b.vx, b.vy)).toBeLessThan(5); // at rest
     }
-    // top box remains roughly where a perfect stack puts it (no sinking through each other)
-    expect(boxes[7].y).toBeGreaterThan(940 - 8 * 41 - 5);
-    expect(boxes[7].y).toBeLessThan(940 - 7 * 41 + 12);
+    // the top box sits where a perfect stack puts it (nothing sank)
+    expect(Math.abs(boxes[n - 1].y - (940 - (n - 1) * 40))).toBeLessThan(4);
   });
 
   it('bouncing never gains energy', () => {

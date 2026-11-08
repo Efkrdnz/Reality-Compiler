@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Renderer, type Overlay } from '../render/renderer';
+import { Renderer, VEL_SCALE, entityHandles, type Overlay } from '../render/renderer';
 import { FIELD_INFO } from '../sim/fields';
 import { shapeSpecFor } from '../sim/rules/engine';
 import type { Entity, Field } from '../sim/types';
@@ -8,7 +8,7 @@ import { sim } from './sim';
 import { useUI, type Tool } from './store';
 
 interface DragState {
-  mode: 'none' | 'pan' | 'entity' | 'field' | 'fieldSize' | 'fieldAngle' | 'spawn' | 'wall' | 'erase' | 'spray';
+  mode: 'none' | 'pan' | 'entity' | 'field' | 'fieldSize' | 'fieldAngle' | 'spawn' | 'wall' | 'erase' | 'spray' | 'rotate' | 'aim';
   sx: number;
   sy: number;
   wx: number;
@@ -156,6 +156,18 @@ export function Viewport() {
     return undefined;
   }
 
+  function entityHandleAt(wx: number, wy: number): { id: number; handle: 'rotate' | 'aim' } | undefined {
+    const ui = useUI.getState();
+    const e = world().get(ui.selectedId);
+    if (!e) return undefined;
+    const z = cam().zoom;
+    const h = entityHandles(e, z, !sim.running);
+    const tol = 9 / z;
+    if (h.vx !== undefined && h.vy !== undefined && Math.hypot(wx - h.vx, wy - h.vy) < tol) return { id: e.id, handle: 'aim' };
+    if (Math.hypot(wx - h.rx, wy - h.ry) < tol) return { id: e.id, handle: 'rotate' };
+    return undefined;
+  }
+
   function spawnShape(tool: Tool, x: number, y: number, vx = 0, vy = 0): Entity | null {
     const ui = useUI.getState();
     const w = world();
@@ -233,6 +245,7 @@ export function Viewport() {
     const c = cursor.current;
     o.selectedId = ui.selectedId;
     o.selectedFieldId = ui.selectedFieldId;
+    o.paused = !sim.running;
     o.ghost = undefined;
     o.line = undefined;
     const d = drag.current;
@@ -280,6 +293,13 @@ export function Viewport() {
     }
     switch (ui.tool) {
       case 'select': {
+        const eh = entityHandleAt(p.wx, p.wy);
+        if (eh) {
+          sim.commit(eh.handle === 'rotate' ? 'rotate' : 'aim velocity');
+          d.mode = eh.handle === 'rotate' ? 'rotate' : 'aim';
+          d.id = eh.id;
+          return;
+        }
         const h = fieldHandleAt(p.wx, p.wy);
         if (h) {
           sim.commit('edit field');
@@ -432,6 +452,21 @@ export function Viewport() {
       case 'erase':
         eraseAt(p.wx, p.wy);
         return;
+      case 'rotate':
+      case 'aim': {
+        const e = w.get(d.id);
+        if (!e) return;
+        if (d.mode === 'rotate') {
+          let a = Math.atan2(p.wy - e.y, p.wx - e.x);
+          if (ev.shiftKey) a = Math.round(a / (Math.PI / 12)) * (Math.PI / 12);
+          e.angle = a;
+          e.av = 0;
+        } else {
+          e.vx = Math.max(-4000, Math.min(4000, (p.wx - e.x) / VEL_SCALE));
+          e.vy = Math.max(-4000, Math.min(4000, (p.wy - e.y) / VEL_SCALE));
+        }
+        return;
+      }
     }
     // hover
     const ui = useUI.getState();
@@ -439,7 +474,7 @@ export function Viewport() {
       const e = w.pick(p.wx, p.wy, 4 / cam().zoom);
       overlay.current.hoverId = e?.id;
       overlay.current.hoverFieldId = e ? undefined : w.pickField(p.wx, p.wy)?.id;
-      const h = ui.tool === 'select' ? fieldHandleAt(p.wx, p.wy) : undefined;
+      const h = ui.tool === 'select' ? fieldHandleAt(p.wx, p.wy) ?? entityHandleAt(p.wx, p.wy) : undefined;
       canvasRef.current!.style.cursor = h ? (h.handle === 'size' ? 'nwse-resize' : 'grab') : e || overlay.current.hoverFieldId ? 'pointer' : 'default';
     } else {
       overlay.current.hoverId = undefined;
@@ -489,7 +524,7 @@ export function Viewport() {
         }
       }
       sim.touch();
-    } else if (d.mode === 'field' || d.mode === 'fieldSize' || d.mode === 'fieldAngle' || d.mode === 'spray' || d.mode === 'erase') {
+    } else if (d.mode === 'field' || d.mode === 'fieldSize' || d.mode === 'fieldAngle' || d.mode === 'spray' || d.mode === 'erase' || d.mode === 'rotate' || d.mode === 'aim') {
       sim.touch();
     }
     d.mode = 'none';

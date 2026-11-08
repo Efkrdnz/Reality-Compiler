@@ -68,40 +68,40 @@ gives full control and determinism under a fixed timestep.
 ## 2. Feature checklist
 
 Core
-- [ ] particles, circles, boxes; static bodies; walls
-- [ ] collisions w/ restitution, friction, rotation
-- [ ] gravity, forces, drag, temperature, materials
-- [ ] time controls: play/pause, slow motion / fast, step, reset
-- [ ] spawn / drag (mouse spring) / connect (joints) / delete / inspect
-- [ ] save/load (localStorage slots), export/import JSON
+- [x] particles, circles, boxes; static bodies; walls
+- [x] collisions w/ restitution, friction, rotation
+- [x] gravity, forces, drag, temperature, materials
+- [x] time controls: play/pause, slow motion / fast, step, reset
+- [x] spawn / drag (mouse spring) / connect (joints) / delete / inspect
+- [x] save/load (localStorage slots), export/import JSON
 
 Reality programming
-- [ ] triggers: collision, proximity, timer, creation, destruction, temperature,
+- [x] triggers: collision, proximity, timer, creation, destruction, temperature,
       velocity, state change, signal (event chains), always/tick
-- [ ] conditions: material, mass, color, position, speed, tags, temperature,
+- [x] conditions: material, mass, color, position, speed, tags, temperature,
       state, variables, expression; subject self/other
-- [ ] actions: force, impulse, teleport, transform, duplicate, destroy, set gravity,
+- [x] actions: force, impulse, teleport, transform, duplicate, destroy, set gravity,
       set property, tag add/remove, emit particles, spawn, trigger rule, emit signal,
       set variable, set environment (ambient temp, wind, time scale)
-- [ ] priorities, cooldowns, enable/disable, variables, modules, event chains
-- [ ] visual editor with validation, templates, module save/install
+- [x] priorities, cooldowns, enable/disable, variables, modules, event chains
+- [x] visual editor with validation, templates, module save/install
 
 Advanced
-- [ ] gravity wells, attract/repel, gravity zones, wind/vortex, heat zones
-- [ ] portals (paired), time zones (local dilation)
-- [ ] programmable materials editor (phase changes, ignition, emission)
-- [ ] strange universes presets: reversed gravity, self-replication, chain reaction
+- [x] gravity wells, attract/repel, gravity zones, wind/vortex, heat zones
+- [x] portals (paired), time zones (local dilation)
+- [x] programmable materials editor (phase changes, ignition, emission)
+- [x] strange universes presets: reversed gravity, self-replication, chain reaction
 
 Experimentation
-- [ ] presets, rule templates, metrics w/ sparklines, event inspector, perf diagnostics
+- [x] presets, rule templates, metrics w/ sparklines, event inspector, perf diagnostics
 
 Visuals
-- [ ] dark lab aesthetic, glow sprites, trails, field overlays, force vectors,
+- [x] dark lab aesthetic, glow sprites, trails, field overlays, force vectors,
       gizmos (selection, field radius handles), heat-view, smooth UI animation
 
 Quality
-- [ ] keyboard shortcuts, undo for edits, toasts for errors, validation
-- [ ] vitest suite; playwright smoke run; README with setup + limitations
+- [x] keyboard shortcuts, undo for edits, toasts for errors, validation
+- [x] vitest suite; playwright smoke run; README with setup + limitations
 
 ## 3. Execution order
 1. Scaffold (Vite/React/TS/vitest), math/rng/types.
@@ -112,3 +112,30 @@ Quality
 6. React UI: top bar, tools, inspector, rule editor, materials, world, events, metrics.
 7. Playwright smoke run, screenshots, polish visuals and UX.
 8. README, limitations, final verification, commit & push.
+
+## 4. Status & notes (kept up to date)
+
+All checklist items are implemented and verified:
+
+- `npm test`: 91 vitest tests (expression language, every trigger/condition/action family,
+  priorities, cooldowns, recursion/cycle/budget/entity-cap guards, stacking stability, fields,
+  thermal, charges, determinism across all presets, exact save → load continuation,
+  JSON validation errors, preset mechanics).
+- `npm run smoke`: 17 end-to-end checks in Chromium driving the real UI.
+- `npm run build`: type-check + production bundle.
+
+Notable engineering decisions made along the way:
+
+- **Solver stability.** Tall stacks first toppled. Root cause: per-contact biases (restitution,
+  approach speed) were computed *after* earlier contacts had been warm-started, so resting stacks
+  looked like impacts and pumped energy. The fix (compute all biases first) plus speculative
+  contacts, a Box2D-style 2-point block solver and angular position correction gives rock-solid
+  16-box stacks even at 1 substep.
+- **Spark storms.** Energy-like particles skip particle-particle contacts and are passive in the
+  broadphase: 2,500-entity storms went from 140 ms to 7.5 ms per step.
+- **Safety.** Prototype-chain lookups (`constructor`, `__proto__`) are rejected in expressions,
+  variables and imported JSON. New rules start with body-only filters so a fresh rule can't
+  cascade particles up to the entity cap.
+- **Events between steps.** Deletions and manual firings made while paused are queued and
+  processed on the next step. Crossing triggers compare against end-of-previous-step values, so
+  inspector edits count as crossings.

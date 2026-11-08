@@ -45,6 +45,29 @@ export interface Overlay {
   line?: { x1: number; y1: number; x2: number; y2: number; style: 'sling' | 'wall' | 'link' | 'portal' };
   /** rule highlight: entities that fired a rule recently glow */
   pulse?: Map<number, number>;
+  /** simulation paused (shows the velocity aiming handle) */
+  paused?: boolean;
+}
+
+/** World positions of the selected entity's gizmo handles (shared by renderer and input). */
+export function entityHandles(e: Entity, zoom: number, paused: boolean): { rx: number; ry: number; vx?: number; vy?: number } {
+  const R = e.radius + 22 / zoom;
+  const out: { rx: number; ry: number; vx?: number; vy?: number } = { rx: e.x + Math.cos(e.angle) * R, ry: e.y + Math.sin(e.angle) * R };
+  if (paused && !e.isStatic) {
+    const sp = Math.hypot(e.vx, e.vy);
+    if (sp * VEL_SCALE > e.radius + 10 / zoom) {
+      out.vx = e.x + e.vx * VEL_SCALE;
+      out.vy = e.y + e.vy * VEL_SCALE;
+    } else {
+      // too slow to show at the arrow tip: park the handle beside the body, pointing along velocity (or down)
+      const d = e.radius + 34 / zoom;
+      const ux = sp > 1 ? e.vx / sp : 0;
+      const uy = sp > 1 ? e.vy / sp : 1;
+      out.vx = e.x + ux * d;
+      out.vy = e.y + uy * d;
+    }
+  }
+  return out;
 }
 
 interface Trail {
@@ -68,6 +91,8 @@ interface Fx {
 }
 
 const TRAIL_LEN = 26;
+/** Screen length of velocity arrows per px/s. */
+export const VEL_SCALE = 0.12;
 const BLOOM_SCALE = 0.25;
 
 /** Blackbody-ish colour for temperatures (for hot glow and heat view). */
@@ -748,9 +773,8 @@ export class Renderer {
       if (e.dead || e.isStatic || e.kind === 'particle') continue;
       const sp = Math.hypot(e.vx, e.vy);
       if (sp < 5) continue;
-      const k = 0.12;
       const sel = overlay.selectedId === e.id;
-      arrow(ctx, e.x, e.y, e.x + e.vx * k, e.y + e.vy * k, sel ? '#7dff4f' : 'rgba(125,255,79,0.55)', 6 / z);
+      arrow(ctx, e.x, e.y, e.x + e.vx * VEL_SCALE, e.y + e.vy * VEL_SCALE, sel ? '#7dff4f' : 'rgba(125,255,79,0.55)', 6 / z);
     }
     ctx.restore();
   }
@@ -866,9 +890,45 @@ export class Renderer {
       }
       ctx.stroke();
       ctx.restore();
+      // rotation handle
+      const rh = entityHandles(sel, z, o.paused ?? false);
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255,61,242,0.7)';
+      ctx.lineWidth = 1.2 / z;
+      ctx.beginPath();
+      ctx.moveTo(sel.x + Math.cos(sel.angle) * sel.radius, sel.y + Math.sin(sel.angle) * sel.radius);
+      ctx.lineTo(rh.rx, rh.ry);
+      ctx.stroke();
+      ctx.fillStyle = '#ff3df2';
+      ctx.beginPath();
+      ctx.arc(rh.rx, rh.ry, 5 / z, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+      if (rh.vx !== undefined && rh.vy !== undefined && !sel.isStatic) {
+        ctx.save();
+        ctx.setLineDash([3 / z, 3 / z]);
+        ctx.strokeStyle = 'rgba(125,255,79,0.6)';
+        ctx.lineWidth = 1.2 / z;
+        ctx.beginPath();
+        ctx.moveTo(sel.x, sel.y);
+        ctx.lineTo(rh.vx, rh.vy);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = '#05070d';
+        ctx.strokeStyle = '#7dff4f';
+        ctx.lineWidth = 2 / z;
+        ctx.beginPath();
+        ctx.arc(rh.vx, rh.vy, 6 / z, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.font = `${10 / z}px "JetBrains Mono", monospace`;
+        ctx.fillStyle = '#7dff4f';
+        ctx.fillText(`${Math.round(Math.hypot(sel.vx, sel.vy))} px/s`, rh.vx + 9 / z, rh.vy - 6 / z);
+        ctx.restore();
+      }
       if (!view.vectors && !sel.isStatic) {
         const sp = Math.hypot(sel.vx, sel.vy);
-        if (sp > 5) arrow(ctx, sel.x, sel.y, sel.x + sel.vx * 0.12, sel.y + sel.vy * 0.12, '#7dff4f', 7 / z);
+        if (sp > 5) arrow(ctx, sel.x, sel.y, sel.x + sel.vx * VEL_SCALE, sel.y + sel.vy * VEL_SCALE, '#7dff4f', 7 / z);
         const g = world.settings.gravity;
         if (Math.hypot(g.x, g.y) > 1 && sel.gravityScale !== 0)
           arrow(ctx, sel.x, sel.y, sel.x + g.x * 0.05 * sel.gravityScale, sel.y + g.y * 0.05 * sel.gravityScale, 'rgba(255,61,242,0.8)', 6 / z);

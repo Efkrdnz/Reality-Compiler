@@ -150,6 +150,50 @@ await check('select an entity, inspect it and delete it', async () => {
   await page.keyboard.press('Space');
 });
 
+await check('gizmos: rotate a body and aim its velocity while paused', async () => {
+  await page.keyboard.press('Space');
+  await page.keyboard.press('1');
+  const info = await rc(() => {
+    const w = globalThis.__rc.world;
+    const cam = globalThis.__rcView.camera;
+    const e = w.entities.find((x) => !x.isStatic && x.radius > 10 && x.kind === 'body');
+    return { id: e.id, p: cam.toScreen(e.x, e.y) };
+  });
+  await page.mouse.click(box.x + info.p.x, box.y + info.p.y);
+  const h = await rc((id) => {
+    const w = globalThis.__rc.world;
+    const cam = globalThis.__rcView.camera;
+    const e = w.get(id);
+    const z = cam.zoom;
+    const R = e.radius + 22 / z;
+    const sp = Math.hypot(e.vx, e.vy);
+    let ax, ay;
+    if (sp * 0.12 > e.radius + 10 / z) { ax = e.x + e.vx * 0.12; ay = e.y + e.vy * 0.12; }
+    else { const d = e.radius + 34 / z; ax = e.x + (sp > 1 ? e.vx / sp : 0) * d; ay = e.y + (sp > 1 ? e.vy / sp : 1) * d; }
+    return { rot: cam.toScreen(e.x + Math.cos(e.angle) * R, e.y + Math.sin(e.angle) * R), aim: cam.toScreen(ax, ay), c: cam.toScreen(e.x, e.y) };
+  }, info.id);
+  // aim: drag the velocity handle to the right of the body
+  await page.mouse.move(box.x + h.aim.x, box.y + h.aim.y);
+  await page.mouse.down();
+  await page.mouse.move(box.x + h.c.x + 90, box.y + h.c.y, { steps: 4 });
+  await page.mouse.up();
+  const v = await rc((id) => { const e = globalThis.__rc.world.get(id); return { vx: e.vx, vy: e.vy, angle: e.angle }; }, info.id);
+  assert(v.vx > 300 && Math.abs(v.vy) < 120, `aimed velocity wrong: ${JSON.stringify(v)}`);
+  // rotate: drag the rotation handle to straight below the body
+  const h2 = await rc((id) => {
+    const w = globalThis.__rc.world; const cam = globalThis.__rcView.camera; const e = w.get(id); const R = e.radius + 22 / cam.zoom;
+    return cam.toScreen(e.x + Math.cos(e.angle) * R, e.y + Math.sin(e.angle) * R);
+  }, info.id);
+  await page.mouse.move(box.x + h2.x, box.y + h2.y);
+  await page.mouse.down();
+  await page.mouse.move(box.x + h.c.x, box.y + h.c.y + 80, { steps: 4 });
+  await page.mouse.up();
+  const a = await rc((id) => globalThis.__rc.world.get(id).angle, info.id);
+  assert(Math.abs(a - Math.PI / 2) < 0.15, `rotation should be ~90°, got ${a}`);
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Space');
+});
+
 await check('place a gravity well and a linked portal pair', async () => {
   const a = await world();
   await page.getByTestId('field-well').click();

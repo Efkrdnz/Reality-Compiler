@@ -134,7 +134,7 @@ export function MaterialsPanel() {
         </Row>
         <Row label="lifetime s" title="-1 = forever">
           <NumberInput value={m.lifetime} onChange={(v) => set('lifetime', v < 0 ? -1 : v)} />
-          <span className="muted small">then →</span>
+          <span className="muted small">→</span>
           <select className="input grow" value={m.decayTo} onChange={(e) => set('decayTo', e.target.value)}>
             <option value="">vanish</option>
             {[...w.materials.values()].filter((x) => x.id !== m.id).map((x) => (

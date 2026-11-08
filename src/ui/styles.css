@@ -533,6 +533,7 @@ input[type='color']::-webkit-color-swatch {
 }
 .viewport canvas {
   display: block;
+  outline: none;
   position: absolute;
   inset: 0;
   touch-action: none;
