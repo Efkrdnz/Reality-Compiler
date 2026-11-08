@@ -121,7 +121,7 @@ All checklist items are implemented and verified:
   priorities, cooldowns, recursion/cycle/budget/entity-cap guards, stacking stability, fields,
   thermal, charges, determinism across all presets, exact save → load continuation,
   JSON validation errors, preset mechanics).
-- `npm run smoke`: 17 end-to-end checks in Chromium driving the real UI.
+- `npm run smoke`: 20 end-to-end checks in Chromium driving the real UI.
 - `npm run build`: type-check + production bundle.
 
 Notable engineering decisions made along the way:

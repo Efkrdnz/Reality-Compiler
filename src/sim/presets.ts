@@ -269,7 +269,7 @@ export const PRESETS: Preset[] = [
       w.settings.ambientExchange = 0.02;
       floor(w, { material: 'metal' });
       w.addField('heat', 800, 930, { name: 'stove', shape: 'rect', w: 900, h: 120, strength: 420 });
-      w.addField('heat', 800, 120, { name: 'cloud deck', shape: 'rect', w: 1500, h: 200, strength: -260 });
+      w.addField('heat', 800, 75, { name: 'cloud deck', shape: 'rect', w: 1600, h: 150, strength: -120 });
       const r = w.rng;
       scatter(w, 70, (i) => w.spawn({ shape: { type: 'box', w: 18, h: 18 }, x: 420 + (i % 14) * 54, y: 400 + Math.floor(i / 14) * 40, angle: r.range(0, 1), material: 'ice', origin: 'preset' }));
       // steam doesn't time out in this world

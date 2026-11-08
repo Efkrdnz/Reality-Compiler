@@ -309,6 +309,49 @@ await check('export world JSON and import it back', async () => {
   assert(w.name === doc.name, `imported name ${w.name} != ${doc.name}`);
 });
 
+await check('reset returns to the loaded snapshot', async () => {
+  await page.getByTestId('tab-presets').click();
+  await page.getByTestId('preset-orbits').click();
+  await page.waitForTimeout(200);
+  const start = await world();
+  await page.waitForTimeout(800);
+  await canvas.click({ position: { x: 5, y: 5 } });
+  await page.keyboard.press('r');
+  await page.waitForTimeout(50);
+  const after = await world();
+  assert(after.step < start.step + 10, `reset should rewind (step ${after.step})`);
+  assert(after.n === start.n, 'reset should restore the population');
+});
+
+await check('save to a browser slot and load it back', async () => {
+  await page.getByTestId('tab-presets').click();
+  await page.getByTestId('save-name').fill('smoke-slot');
+  await page.getByTestId('save-name').press('Enter');
+  await page.getByTestId('preset-blank').click();
+  assert((await world()).name === 'Empty Lab', 'expected the empty lab');
+  await page.locator('.listitem', { hasText: 'smoke-slot' }).getByRole('button', { name: 'Load' }).click();
+  await page.waitForTimeout(200);
+  assert((await world()).name === 'Orbital Garden', 'slot should restore Orbital Garden');
+});
+
+await check('export rules and import them back (append)', async () => {
+  await page.getByTestId('preset-goo').click();
+  await page.waitForTimeout(200);
+  const before = await world();
+  await page.getByTestId('btn-file').click();
+  const [dl] = await Promise.all([page.waitForEvent('download'), page.getByText('Export rules + modules JSON').click()]);
+  const path = join(out, 'exported.rules.json');
+  await dl.saveAs(path);
+  await page.getByTestId('btn-file').click();
+  const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.getByText('Import rules (append)…').click()]);
+  await chooser.setFiles(path);
+  await page.waitForTimeout(200);
+  const after = await world();
+  assert(after.rules === before.rules * 2, `expected ${before.rules * 2} rules, got ${after.rules}`);
+  const ids = await rc(() => new Set(globalThis.__rc.world.rules.map((r) => r.id)).size);
+  assert(ids === after.rules, 'imported rules must get fresh ids');
+});
+
 await check('import of an invalid file shows a readable error', async () => {
   const bad = join(out, 'bad.world.json');
   writeFileSync(bad, JSON.stringify({ format: 'reality-compiler/world', version: 1, name: 'x', description: '', seed: 1, settings: {}, materials: [], entities: [{ id: 1 }], joints: [], fields: [], rules: [], modules: [], vars: {} }));
