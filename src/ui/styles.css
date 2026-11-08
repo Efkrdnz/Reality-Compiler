@@ -1275,27 +1275,27 @@ input[type='color']::-webkit-color-swatch {
 .event .d {
   color: var(--dim);
 }
-.kind.rule {
+.kind.kind-rule {
   color: var(--lime);
 }
-.kind.signal {
+.kind.kind-signal {
   color: var(--cyan);
 }
-.kind.state {
+.kind.kind-state {
   color: var(--amber);
 }
-.kind.warn {
+.kind.kind-warn {
   color: var(--red);
 }
-.kind.error {
+.kind.kind-error {
   color: var(--red);
   font-weight: 700;
 }
-.kind.info {
+.kind.kind-info {
   color: var(--violet);
 }
-.kind.create,
-.kind.destroy {
+.kind.kind-create,
+.kind.kind-destroy {
   color: var(--magenta);
 }
 

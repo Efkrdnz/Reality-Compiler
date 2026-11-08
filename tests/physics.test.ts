@@ -176,6 +176,17 @@ describe('fields', () => {
     expect(e.gravityScale).toBeLessThan(0); // steam rises
   });
 
+  it('fields do not act on static geometry', () => {
+    const w = groundWorld();
+    w.addField('heat', 800, 980, { shape: 'rect', w: 1600, h: 200, strength: 5000 });
+    w.addField('well', 800, 980, { radius: 500, strength: 5000 });
+    const floor = w.entities[0];
+    run(w, 120);
+    expect(floor.temperature).toBeLessThan(25);
+    expect(floor.x).toBe(800);
+    expect(floor.material).toBe('stone');
+  });
+
   it('heat conducts between touching bodies', () => {
     const w = groundWorld();
     w.settings.ambientExchange = 0;

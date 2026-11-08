@@ -32,9 +32,11 @@ describe('presets', () => {
     expect(inverted.settings.gravity.y).toBe(-gy0); // flipped by the timer rule
 
     const phase = buildPreset('phase', 1);
-    run(phase, 900);
+    const floorId = phase.entities.find((e) => e.isStatic)!.id;
+    run(phase, 1800);
     const mats = new Set(phase.entities.map((e) => e.material));
-    expect(mats.has('steam') || mats.has('water')).toBe(true);
+    expect(mats.has('steam') && mats.has('water')).toBe(true); // a living cycle, not a steady state
+    expect(phase.get(floorId)?.material).toBe('metal'); // the stove must not melt/vaporise the floor
 
     const forest = buildPreset('forest', 1);
     run(forest, 1200);

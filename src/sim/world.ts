@@ -35,6 +35,8 @@ export const DEFAULT_SETTINGS: WorldSettings = {
 export const MAX_SPEED = 6000;
 const ETHEREAL: Record<string, boolean> = { energy: true, plasma: true, gas: true };
 const CONDUCTION_RATE = 3.5;
+/** Scales the user-facing coulomb constant to px/s² for typical masses (≈30 px/s² at 60 px between ±2 charges). */
+const CHARGE_SCALE = 3e5;
 const LOG_LIMIT = 800;
 
 const now = (): number => (typeof performance !== 'undefined' ? performance.now() : Date.now());
@@ -456,11 +458,13 @@ export class World {
       }
       e.localTime = acc.timeScale;
       const hl = h * acc.timeScale;
-      if (acc.heat !== 0) e.temperature += acc.heat * hl;
       if (e.isStatic) {
+        // static geometry (floors, walls) is a fixture: fields don't push or heat it.
+        // It still exchanges heat by conduction with whatever touches it.
         e.fx = e.fy = e.torque = 0;
         continue;
       }
+      if (acc.heat !== 0) e.temperature += acc.heat * hl;
       e.vx += (acc.gx * e.gravityScale + acc.ax + e.fx * e.invMass) * hl;
       e.vy += (acc.gy * e.gravityScale + acc.ay + e.fy * e.invMass) * hl;
       e.av += e.torque * e.invInertia * hl;
@@ -692,7 +696,7 @@ export class World {
         const d = Math.sqrt(d2) || 1e-6;
         // fade out near the range edge so there's no force discontinuity
         const fade = 1 - d / R;
-        const f = ((s.coulomb * a.charge * b.charge) / Math.max(d2, minD2)) * 1000 * fade;
+        const f = ((s.coulomb * a.charge * b.charge) / Math.max(d2, minD2)) * CHARGE_SCALE * fade;
         const fx = (dx / d) * f;
         const fy = (dy / d) * f;
         a.fx -= fx;

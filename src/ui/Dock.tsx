@@ -38,7 +38,7 @@ function Events() {
               })
             }
           >
-            <span className={`kind ${k}`}>{k}</span> <span className="mono muted">{counts.get(k) ?? 0}</span>
+            <span className={`kind kind-${k}`}>{k}</span> <span className="mono muted">{counts.get(k) ?? 0}</span>
           </button>
         ))}
         <input className="input" placeholder="search events…" value={q} onChange={(e) => setQ(e.target.value)} style={{ width: 180 }} />
@@ -72,7 +72,7 @@ function Events() {
             title={l.text}
           >
             <span className="t">{l.time.toFixed(2)}s</span>
-            <span className={`kind ${l.kind}`}>{l.kind}</span>
+            <span className={`kind kind-${l.kind}`}>{l.kind}</span>
             <span className="d">{l.depth ? `depth ${l.depth}` : `#${l.step}`}</span>
             <span className="txt">{l.text}</span>
           </div>

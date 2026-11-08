@@ -375,7 +375,7 @@ export class Renderer {
     const byId = new Map(world.fields.map((f) => [f.id, f]));
     for (const f of world.fields) {
       const info = FIELD_INFO[f.kind];
-      const col = f.color || info.color;
+      const col = f.color || (f.kind === 'heat' && f.strength < 0 ? '#5ab8ff' : info.color);
       const [r, g, b] = hexToRgb(col);
       const alpha = f.enabled ? 1 : 0.35;
       const sel = overlay.selectedFieldId === f.id || overlay.hoverFieldId === f.id;
@@ -677,7 +677,9 @@ export class Renderer {
         const pulse = overlay.pulse?.get(e.id) ?? 0;
         glow = Math.min(1.4, glow + pulse);
         if (glow < 0.06) continue;
-        const size = e.radius * (e.kind === 'particle' ? 5.5 : 2.4 + glow * 2.2);
+        // radial sprites only suit compact bodies; big walls/floors show heat via their outline instead
+        if (e.radius > 140) continue;
+        const size = Math.min(e.radius * (e.kind === 'particle' ? 5.5 : 2.4 + glow * 2.2), e.radius + 60);
         gctx.globalAlpha = Math.min(1, (e.kind === 'particle' ? 0.7 : 0.55) * glow * (e.kind === 'particle' && e.lifetime >= 0 ? Math.min(1, e.lifetime * 3) : 1));
         gctx.drawImage(this.glow(color), e.x - size, e.y - size, size * 2, size * 2);
       }
@@ -695,6 +697,13 @@ export class Renderer {
       if (e.dead || e.x < tl.x - e.radius || e.x > br.x + e.radius || e.y < tl.y - e.radius || e.y > br.y + e.radius) continue;
       let color = e.color;
       if (view.heat) color = rgbStr(heatColor(qT(e.temperature)));
+      else if (e.temperature > 350 && e.state !== 'plasma') {
+        // incandescence: hot matter shifts towards blackbody colours
+        const k = Math.min(1, (e.temperature - 350) / 900);
+        const [hr, hg, hb] = heatColor(qT(e.temperature));
+        const [cr, cg, cb] = hexToRgb(color);
+        color = rgbStr([cr + (hr - cr) * k, cg + (hg - cg) * k, cb + (hb - cb) * k]);
+      }
       const [r, g, b] = hexToRgb(color);
       // spawn pop-in
       const born = Math.min(1, (e.age + 0.02) / 0.18);
